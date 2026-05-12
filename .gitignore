@@ -1,6 +1,9 @@
 # Build output
 dist/
 
+# Test run logs
+output/
+
 # Dependencies
 node_modules/
 

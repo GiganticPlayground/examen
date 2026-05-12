@@ -2,6 +2,7 @@
 import { loadSuite, ExamenError } from './suite/load.js'
 import { runSuite } from './suite/run.js'
 import { printCase, printSummary } from './output.js'
+import { writeReport } from './reporter.js'
 
 const args = process.argv.slice(2)
 const command = args[0]
@@ -42,6 +43,7 @@ if (command === 'run') {
   let only: string[] | undefined
   let seed: number | string | undefined
   let noRedact = false
+  let outputDir: string | undefined
 
   for (let i = 2; i < args.length; i++) {
     const flag = args[i]
@@ -51,10 +53,13 @@ if (command === 'run') {
       seed = parseInt(args[++i]!, 10)
     } else if (flag === '--no-redact') {
       noRedact = true
+    } else if ((flag === '--output' || flag === '-O') && args[i + 1]) {
+      outputDir = args[++i]
     }
   }
 
-  const start = Date.now()
+  const startedAt = new Date()
+  const start = startedAt.getTime()
   try {
     const suite = loadSuite(file)
     const results = await runSuite(suite, {
@@ -71,6 +76,11 @@ if (command === 'run') {
     const effectiveSeed = seed ?? suite.seed ?? 'random'
     const totalMs = Date.now() - start
     printSummary(results, effectiveSeed, totalMs)
+
+    if (outputDir !== undefined) {
+      const outFile = writeReport({ suite, suiteFile: file, seed: effectiveSeed, startedAt, duration_ms: totalMs, results, outputDir })
+      console.log(`\nReport written to ${outFile}`)
+    }
 
     const anyFailed = results.some(r => r.status === 'FAIL' || r.status === 'ERROR')
     process.exit(anyFailed ? 1 : 0)
