@@ -88,12 +88,13 @@ examen validate <file>
 
 | Flag | Short | Description |
 |---|---|---|
+| `--env-file <path>` | `-E` | Load environment variables from a `.env` file |
 | `--only id,id` | `-o` | Run only these test ids (comma-separated) |
 | `--seed <n>` | `-s` | Fix the PRNG seed for reproducible generator values |
 | `--no-redact` | | Show full Authorization headers and tokens in output |
 | `--output <dir>` | `-O` | Write a structured run log to this directory |
 
-**`validate`** — parse and schema-check the file without making any requests. Exit code `0` = valid, `2` = error.
+**`validate`** — parse and schema-check the file without making any requests. Supports `--env-file`. Exit code `0` = valid, `2` = error.
 
 **Exit codes:**
 
@@ -103,6 +104,62 @@ examen validate <file>
 | `1` | One or more test failures |
 | `2` | Schema or parse error |
 | `3` | Runtime error |
+
+---
+
+## Environment Variables
+
+Reference environment variables anywhere in a suite file with `${env:VAR_NAME}`. examen will error immediately if a referenced variable is not set.
+
+```yaml
+vars:
+  baseUrl: "${env:API_URL}"
+  token:   "${env:API_TOKEN}"
+
+tests:
+  - name: "Authenticated request"
+    http:
+      method: GET
+      url: "${vars.baseUrl}/profile"
+      headers:
+        Authorization: "Bearer ${vars.token}"
+    expect:
+      - status: 200
+```
+
+**Loading from a `.env` file:**
+
+```bash
+examen run suite.yaml --env-file .env.staging
+```
+
+The `.env` file format is standard — `KEY=value`, `export KEY=value`, quoted values, and `#` comments are all supported:
+
+```bash
+API_URL=https://staging.example.com
+API_TOKEN="my-secret-token"
+# DB_URL=unused
+export REGION=us-east-1
+```
+
+**With Docker**, pass env vars via `-e` flags or `--env-file`:
+
+```bash
+# Inline
+docker run --rm -v $(pwd):/work \
+  -e API_URL=https://staging.example.com \
+  -e API_TOKEN=my-token \
+  ghcr.io/giganticplayground/examen run /work/suite.yaml
+
+# From a file (Docker's --env-file, loaded into the container environment)
+docker run --rm -v $(pwd):/work \
+  --env-file .env.staging \
+  ghcr.io/giganticplayground/examen run /work/suite.yaml
+
+# Or mount the file and use examen's --env-file flag
+docker run --rm -v $(pwd):/work \
+  ghcr.io/giganticplayground/examen run /work/suite.yaml --env-file /work/.env.staging
+```
 
 ---
 
