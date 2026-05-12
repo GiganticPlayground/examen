@@ -78,8 +78,8 @@ if (command === 'run') {
     printSummary(results, effectiveSeed, totalMs)
 
     if (outputDir !== undefined) {
-      const outFile = writeReport({ suite, suiteFile: file, seed: effectiveSeed, startedAt, duration_ms: totalMs, results, outputDir })
-      console.log(`\nReport written to ${outFile}`)
+      const runDir = writeReport({ suite, suiteFile: file, seed: effectiveSeed, startedAt, duration_ms: totalMs, results, outputDir })
+      console.log(`\nReport written to ${runDir}/`)
     }
 
     const anyFailed = results.some(r => r.status === 'FAIL' || r.status === 'ERROR')
