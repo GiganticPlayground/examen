@@ -1,0 +1,263 @@
+name: "examen full example"
+seed: 42
+defaultTimeoutMs: 15000
+
+# vars are evaluated once at startup.
+# Generator references here are pinned for the whole run.
+vars:
+  baseUrl: "https://httpbin.org"
+  pinned_id: "${gen.resourceId}"        # same value every time it's referenced
+  tags:
+    - alpha
+    - beta
+    - gamma
+  hosts:
+    - { name: primary, url: "https://httpbin.org" }
+    - { name: mirror,  url: "https://httpbin.org" }  # same host, demonstrates forEach
+
+generators:
+  resourceId: "RES-${uuid}"
+  shortHex:   "${randomHex:8:upper}"
+  ts:         "${timestamp}"
+
+# ─────────────────────────────────────────────────────────────
+# 1. Simple GET — shorthand matchers
+# ─────────────────────────────────────────────────────────────
+tests:
+  - id: getJson
+    name: "GET /json returns 200 with a slideshow object"
+    http:
+      method: GET
+      url: "${vars.baseUrl}/json"
+    expect:
+      - status: 200
+      - body: { type: object }
+      - body.slideshow: { exists: true }
+      - body.slideshow.title: { type: string }
+
+# ─────────────────────────────────────────────────────────────
+# 2. POST with JSON body — let bindings keep the same id across
+#    the request body and the capture
+# ─────────────────────────────────────────────────────────────
+  - id: postAnything
+    name: "POST /anything echoes the body back"
+    let:
+      caseId: "${gen.resourceId}"       # pinned for this iteration only
+      label:  "probe-${gen.ts}"
+    http:
+      method: POST
+      url: "${vars.baseUrl}/anything"
+      headers:
+        X-Request-Id: "${caseId}"
+      body:
+        id:    "${caseId}"
+        label: "${label}"
+        pinned: "${vars.pinned_id}"
+    capture:
+      echoed_id:    body.json.id
+      echoed_label: body.json.label
+    expect:
+      - status: 200
+      - body.json.id:    { equals: "${caseId}" }
+      - body.json.label: { matches: "^probe-" }
+      - body.method:     { equals: "POST" }
+
+# ─────────────────────────────────────────────────────────────
+# 3. Cross-test capture — read the id captured above
+# ─────────────────────────────────────────────────────────────
+  - id: useCaptured
+    name: "Cross-test: re-send the id captured from postAnything"
+    dependsOn: postAnything
+    http:
+      method: POST
+      url: "${vars.baseUrl}/anything"
+      body:
+        replay_id: "${tests.postAnything.echoed_id}"
+    expect:
+      - status: 200
+      - body.json.replay_id: { equals: "${tests.postAnything.echoed_id}" }
+
+# ─────────────────────────────────────────────────────────────
+# 4. forEach over a vars array — one case per host
+#    keyBy indexes captures so later tests can look them up by name
+# ─────────────────────────────────────────────────────────────
+  - id: healthPerHost
+    name: "GET /get succeeds on every host"
+    forEach: vars.hosts
+    as: host
+    keyBy: host.name                    # captures indexed as [primary] / [mirror]
+    let:
+      traceId: "${gen.shortHex}"
+    http:
+      method: GET
+      url: "${host.url}/get"
+      headers:
+        X-Trace-Id: "${traceId}"
+    capture:
+      origin: body.origin               # httpbin echoes the caller's IP
+    expect:
+      - status: 200
+      - body.url: { contains: "/get" }
+
+# ─────────────────────────────────────────────────────────────
+# 5. forEach over an inline array of objects
+# ─────────────────────────────────────────────────────────────
+  - id: statusCodes
+    name: "httpbin /status endpoint returns the requested code"
+    forEach:
+      - { code: 200, label: "ok" }
+      - { code: 201, label: "created" }
+      - { code: 400, label: "bad-request" }
+    as: tc
+    http:
+      method: GET
+      url: "${vars.baseUrl}/status/${tc.code}"
+      followRedirects: true
+    expect:
+      - status: "${tc.code}"
+
+# ─────────────────────────────────────────────────────────────
+# 6. skipIf — skip a case based on a loop variable
+# ─────────────────────────────────────────────────────────────
+  - id: skipDemo
+    name: "Only runs for alpha tag (beta and gamma are skipped)"
+    forEach: vars.tags
+    as: tag
+    skipIf: "tag != 'alpha'"
+    http:
+      method: GET
+      url: "${vars.baseUrl}/get"
+    expect:
+      - status: 200
+
+# ─────────────────────────────────────────────────────────────
+# 7. All matchers showcase
+# ─────────────────────────────────────────────────────────────
+  - id: matchers
+    name: "Matcher showcase against /json"
+    http:
+      method: GET
+      url: "${vars.baseUrl}/json"
+    expect:
+      - status: 200
+      - status: { equals: 200 }
+      - status: { notEquals: 404 }
+      - status: { gte: 200 }
+      - status: { lte: 299 }
+      - status: { gt: 199 }
+      - status: { lt: 300 }
+      - status: { in: [200, 201, 202] }
+      - status: { notIn: [400, 403, 404, 500] }
+      - body.slideshow: { exists: true }
+      - body.missing_key: { exists: false }
+      - body: { type: object }
+      - body.slideshow.title: { type: string }
+      - body.slideshow.slides: { type: array }
+      - body.slideshow.title: { matches: "." }
+      - body.slideshow.title: { notMatches: "^[0-9]+$" }
+      - body.slideshow.slides: { lengthGte: 1 }
+      - headers.content-type: { contains: "application/json" }
+      - headers.content-type: { notContains: "text/html" }
+      - status: { js: "value === 200" }
+
+# ─────────────────────────────────────────────────────────────
+# 8. body[*] wildcard with all:
+# ─────────────────────────────────────────────────────────────
+  - id: arrayAll
+    name: "Every slide has a title (wildcard + all:)"
+    http:
+      method: GET
+      url: "${vars.baseUrl}/json"
+    expect:
+      - status: 200
+      - "body.slideshow.slides[*].title": { all: { type: string } }
+
+# ─────────────────────────────────────────────────────────────
+# 9. Basic auth
+# ─────────────────────────────────────────────────────────────
+  - id: basicAuth
+    name: "Basic auth credentials are accepted"
+    http:
+      method: GET
+      url: "${vars.baseUrl}/basic-auth/user/pass"
+      auth:
+        user: "user"
+        pass: "pass"
+    expect:
+      - status: 200
+      - body.authenticated: true
+
+# ─────────────────────────────────────────────────────────────
+# 10. setup step — post something, then verify the echo
+# ─────────────────────────────────────────────────────────────
+  - id: withSetup
+    name: "setup posts a probe, main step reads the echo"
+    let:
+      probeId: "${gen.resourceId}"
+    setup:
+      http:
+        method: POST
+        url: "${vars.baseUrl}/anything"
+        body: { probe: "${probeId}" }
+    http:
+      method: POST
+      url: "${vars.baseUrl}/anything"
+      body: { confirm: "${probeId}" }
+    expect:
+      - status: 200
+      - body.json.confirm: { equals: "${probeId}" }
+
+# ─────────────────────────────────────────────────────────────
+# 11. retry — try up to 3 times with a short delay
+# ─────────────────────────────────────────────────────────────
+  - id: withRetry
+    name: "Retry up to 3 times (httpbin always passes so first attempt wins)"
+    retry:
+      count: 3
+      delayMs: 500
+    http:
+      method: GET
+      url: "${vars.baseUrl}/get"
+    expect:
+      - status: 200
+
+# ─────────────────────────────────────────────────────────────
+# 12. Keyed cross-test capture — use captures from healthPerHost
+#     indexed by host name
+# ─────────────────────────────────────────────────────────────
+  - id: useKeyedCapture
+    name: "Re-use origin IP captured from healthPerHost[primary]"
+    dependsOn: healthPerHost
+    http:
+      method: POST
+      url: "${vars.baseUrl}/anything"
+      body:
+        seen_from: "${tests.healthPerHost[primary].origin}"
+    expect:
+      - status: 200
+      - body.json.seen_from: { exists: true }
+
+# ─────────────────────────────────────────────────────────────
+# 13. Response header assertions
+# ─────────────────────────────────────────────────────────────
+  - id: checkHeaders
+    name: "Response includes expected headers"
+    http:
+      method: GET
+      url: "${vars.baseUrl}/response-headers?X-Custom-Header=hello"
+    expect:
+      - status: 200
+      - "headers.x-custom-header": { equals: "hello" }
+      - headers.content-type: { contains: "application/json" }
+
+# ─────────────────────────────────────────────────────────────
+# 14. duration_ms — assert the response came back quickly
+# ─────────────────────────────────────────────────────────────
+  - id: timing
+    name: "Response arrives within 10 seconds"
+    http:
+      method: GET
+      url: "${vars.baseUrl}/get"
+    expect:
+      - status: 200
+      - duration_ms: { lt: 10000 }

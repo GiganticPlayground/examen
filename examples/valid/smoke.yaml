@@ -1,0 +1,10 @@
+name: Smoke test
+tests:
+  - id: httpbin
+    name: "httpbin GET"
+    http:
+      method: GET
+      url: "https://httpbin.org/get"
+    expect:
+      - status:
+          equals: 200

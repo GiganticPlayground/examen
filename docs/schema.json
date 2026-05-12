@@ -1,0 +1,272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://giganticplayground.com/schemas/examen.json",
+  "title": "Examen Test Suite",
+  "description": "Declarative test suite for HTTP and CLI checks. Supports per-test bindings (let), suite-wide bindings (vars), generators, forEach iteration, cross-test capture, and a small expression language for templating.",
+  "type": "object",
+  "required": ["tests"],
+  "additionalProperties": false,
+  "properties": {
+    "name": { "type": "string", "description": "Human-readable suite name." },
+    "description": { "type": "string" },
+    "seed": {
+      "oneOf": [{ "type": "integer" }, { "type": "string" }],
+      "description": "Optional seed for the runner's PRNG. When set, uuid/random helpers become deterministic so a failure can be reproduced exactly."
+    },
+    "defaultTimeoutMs": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 30000,
+      "description": "Default per-step timeout applied to http and cli steps that don't specify their own timeoutMs."
+    },
+    "vars": {
+      "$ref": "#/$defs/bindingMap",
+      "description": "Suite-scope bindings. Evaluated once at startup. Referenced as ${vars.name} or ${name} when unambiguous."
+    },
+    "generators": {
+      "$ref": "#/$defs/generatorMap",
+      "description": "Named template factories that yield a fresh value on every reference. Referenced as ${gen.name}."
+    },
+    "tests": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/test" }
+    }
+  },
+
+  "$defs": {
+    "bindingMap": {
+      "type": "object",
+      "description": "Map of names to values. Values may be any JSON type and may contain ${...} template expressions.",
+      "additionalProperties": true
+    },
+
+    "generatorMap": {
+      "type": "object",
+      "description": "Map of generator names to template strings. Each call yields a fresh evaluation.",
+      "additionalProperties": { "type": "string" }
+    },
+
+    "test": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Optional identifier. Required if other tests reference this test's captures via ${tests.<id>...}."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable test name. Shown in output."
+        },
+        "description": { "type": "string" },
+        "dependsOn": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ],
+          "description": "Test id(s) that must pass before this test runs. If any dependency failed or was skipped, this test is skipped."
+        },
+        "skipIf": {
+          "type": "string",
+          "description": "Expression evaluated per case. If truthy, this case is skipped."
+        },
+        "forEach": { "$ref": "#/$defs/forEach" },
+        "as": {
+          "type": "string",
+          "description": "Variable name to bind each forEach item to. Required when forEach is set."
+        },
+        "keyBy": {
+          "type": "string",
+          "description": "Expression evaluated per iteration to key captured values. Enables ${tests.<id>[<key>].<name>} lookups. Optional; if absent, captures are indexed by integer position."
+        },
+        "let": {
+          "$ref": "#/$defs/bindingMap",
+          "description": "Case-scope bindings. Evaluated once per case (after vars/forEach binding, before setup). Visible to setup, the main step, capture, expect, and teardown."
+        },
+        "setup": {
+          "$ref": "#/$defs/step",
+          "description": "Optional pre-step. Runs before the main step. Its response is not asserted against; use it to prepare state. Its capture block (if present) populates let-like bindings before the main step runs."
+        },
+        "http": { "$ref": "#/$defs/httpStep" },
+        "cli": { "$ref": "#/$defs/cliStep" },
+        "capture": {
+          "$ref": "#/$defs/bindingMap",
+          "description": "Bindings populated after the main step from its response. Visible to expect, teardown, and (for the entire test) to other tests as ${tests.<id>.<name>}."
+        },
+        "expect": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/assertion" },
+          "description": "List of assertions evaluated after the main step."
+        },
+        "teardown": {
+          "$ref": "#/$defs/step",
+          "description": "Optional post-step. Always runs if reached, even when expect fails. Use to clean up state."
+        },
+        "retry": { "$ref": "#/$defs/retry" },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total timeout for the test case (setup + http/cli + expect + teardown). Overrides defaultTimeoutMs."
+        }
+      },
+      "oneOf": [{ "required": ["http"] }, { "required": ["cli"] }]
+    },
+
+    "forEach": {
+      "description": "Either a reference expression (e.g. 'vars.hosts') that resolves to an array, or an inline array literal.",
+      "oneOf": [{ "type": "string" }, { "type": "array" }]
+    },
+
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "http": { "$ref": "#/$defs/httpStep" },
+        "cli": { "$ref": "#/$defs/cliStep" },
+        "capture": { "$ref": "#/$defs/bindingMap" }
+      },
+      "oneOf": [{ "required": ["http"] }, { "required": ["cli"] }]
+    },
+
+    "httpStep": {
+      "type": "object",
+      "required": ["method", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+        },
+        "url": { "type": "string" },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "query": { "type": "object" },
+        "body": {
+          "description": "Any JSON-serializable value. Sent as JSON unless Content-Type is overridden."
+        },
+        "auth": { "$ref": "#/$defs/auth" },
+        "timeoutMs": { "type": "integer", "minimum": 1 },
+        "followRedirects": { "type": "boolean", "default": false }
+      }
+    },
+
+    "cliStep": {
+      "type": "object",
+      "required": ["command"],
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Executable name or full path. Resolved against PATH unless absolute."
+        },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "cwd": { "type": "string" },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Additional env vars. Merged with the runner's env unless shell:strict is true."
+        },
+        "stdin": { "type": "string" },
+        "timeoutMs": { "type": "integer", "minimum": 1 },
+        "shell": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, command + args are passed through /bin/sh -c. Otherwise the command is executed directly."
+        }
+      }
+    },
+
+    "auth": {
+      "description": "HTTP auth. Either basic { user, pass } or bearer { bearer }.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["user", "pass"],
+          "additionalProperties": false,
+          "properties": {
+            "user": { "type": "string" },
+            "pass": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["bearer"],
+          "additionalProperties": false,
+          "properties": {
+            "bearer": { "type": "string" }
+          }
+        }
+      ]
+    },
+
+    "assertion": {
+      "description": "Single-key object: { <path>: <matcher-or-shorthand> }. Path uses dot/bracket notation: 'body.state.id', 'body[0].id', 'body[*].id', 'headers.\"content-type\"', 'status', 'exitCode', 'stdout', 'stderr', 'duration_ms'. Shorthand: a primitive value is interpreted as { equals: <value> }.",
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": {
+        "oneOf": [
+          { "$ref": "#/$defs/matcher" },
+          { "type": "string" },
+          { "type": "number" },
+          { "type": "boolean" },
+          { "type": "null" }
+        ]
+      }
+    },
+
+    "matcher": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "propertyNames": {
+        "enum": [
+          "equals",
+          "notEquals",
+          "exists",
+          "type",
+          "matches",
+          "notMatches",
+          "contains",
+          "notContains",
+          "in",
+          "notIn",
+          "lengthEquals",
+          "lengthGte",
+          "lengthLte",
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "all",
+          "js"
+        ]
+      },
+      "description": "Matchers:\n- equals/notEquals: deep equality\n- exists: bool — value is/is not undefined\n- type: 'string'|'number'|'integer'|'boolean'|'object'|'array'|'null'\n- matches/notMatches: regex (string)\n- contains/notContains: substring (string) or element (array)\n- in/notIn: value is/is not in the provided array\n- lengthEquals/lengthGte/lengthLte: array/string length\n- gt/gte/lt/lte: numeric comparison\n- all: nested matcher applied to every element of an array (use with [*])\n- js: escape-hatch JS expression evaluated with (value, ctx) → boolean"
+    },
+
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Maximum attempts including the first."
+        },
+        "delayMs": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Wait between attempts."
+        }
+      }
+    }
+  }
+}
