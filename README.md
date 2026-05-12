@@ -2,6 +2,21 @@
 
 Declarative HTTP and CLI test runner. Define test suites in YAML — assert status codes, response bodies, headers, exit codes, and timing. Supports chained tests, parallel host checks, retries, setup/teardown, and a small expression language for dynamic values.
 
+## Why examen?
+
+Most test frameworks are built for unit and integration tests that run inside a codebase. examen is built for a different problem: **verifying that a deployed environment is actually working**.
+
+You write a YAML file that describes what your system should do — hit this endpoint, get this response, check these fields — and examen runs it against real infrastructure. No test harness to set up, no language runtime to match, no mocking. Just a file you can commit next to your deploy scripts and run from anywhere.
+
+Common use cases:
+- **Release verification** — run a suite after every deploy to confirm the environment is healthy before marking it complete
+- **Multi-host smoke tests** — iterate the same checks across staging, production, and regional endpoints in a single run
+- **API contract checks** — assert that a third-party or internal API still behaves the way your system depends on
+- **CLI tool validation** — verify that scripts, SSH commands, or system processes return expected output and exit codes
+- **Chained workflow tests** — create a resource, read it back, assert on the result, then clean it up — all in one suite
+
+Because suite files are plain YAML with no dependencies, they live alongside whatever they verify: next to a deploy script, in a release notes folder, or in a scripts directory. Any team member or CI job can run them with a single Docker command — no local toolchain required.
+
 ---
 
 ## Running examen
