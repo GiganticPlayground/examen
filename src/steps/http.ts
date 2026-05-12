@@ -1,8 +1,8 @@
 import { request } from 'undici'
 import type { HttpStep } from '../types.js'
-import type { Scope } from '../context.js'
-import { createLookup } from '../context.js'
-import { renderTemplate, renderValue } from '../template.js'
+import type { Scope } from '../eval/context.js'
+import { createLookup } from '../eval/context.js'
+import { renderTemplate, renderValue } from '../eval/template.js'
 
 export interface HttpResponse {
   status: number

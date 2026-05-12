@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { loadSuite, ExamenError } from './load.js'
-import { runSuite } from './run.js'
+import { loadSuite, ExamenError } from './suite/load.js'
+import { runSuite } from './suite/run.js'
 import { printCase, printSummary } from './output.js'
 
 const args = process.argv.slice(2)

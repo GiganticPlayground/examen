@@ -1,6 +1,6 @@
-import type { ExamenTestSuite, Test } from './types.js'
+import type { ExamenTestSuite, Test } from '../types.js'
 import type { TestCase } from './forEach.js'
-import type { Scope } from './context.js'
+import type { Scope } from '../eval/context.js'
 import { expandTest } from './forEach.js'
 
 export interface Plan {

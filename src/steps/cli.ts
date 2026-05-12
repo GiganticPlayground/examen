@@ -1,8 +1,8 @@
 import { execa } from 'execa'
 import type { CliStep } from '../types.js'
-import type { Scope } from '../context.js'
-import { createLookup } from '../context.js'
-import { renderTemplate } from '../template.js'
+import type { Scope } from '../eval/context.js'
+import { createLookup } from '../eval/context.js'
+import { renderTemplate } from '../eval/template.js'
 
 export interface CliResponse {
   exitCode: number

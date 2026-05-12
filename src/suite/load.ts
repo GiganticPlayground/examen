@@ -3,12 +3,12 @@ import { parseDocument } from 'yaml'
 import { Ajv2020 } from 'ajv/dist/2020.js'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
-import type { ExamenTestSuite } from './types.js'
+import type { ExamenTestSuite } from '../types.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 function loadSchema(): object {
-  const schemaPath = join(__dirname, '../docs/schema.json')
+  const schemaPath = join(__dirname, '../../docs/schema.json')
   return JSON.parse(readFileSync(schemaPath, 'utf8')) as object
 }
 

@@ -1,7 +1,7 @@
 import type { Scope } from './context.js'
 import { resolvePath } from './context.js'
-import type { HttpResponse } from './steps/http.js'
-import type { CliResponse } from './steps/cli.js'
+import type { HttpResponse } from '../steps/http.js'
+import type { CliResponse } from '../steps/cli.js'
 
 export function applyCapture(
   captureMap: Record<string, unknown>,

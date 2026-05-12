@@ -1,6 +1,6 @@
-import type { Test } from './types.js'
-import type { Scope } from './context.js'
-import { createLookup, resolvePath } from './context.js'
+import type { Test } from '../types.js'
+import type { Scope } from '../eval/context.js'
+import { createLookup, resolvePath } from '../eval/context.js'
 
 export interface TestCase {
   test: Test

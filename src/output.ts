@@ -1,7 +1,7 @@
 import chalk from 'chalk'
 import type { HttpResponse } from './steps/http.js'
 import type { CliResponse } from './steps/cli.js'
-import type { AssertionResult } from './expect.js'
+import type { AssertionResult } from './eval/expect.js'
 
 export type CaseStatus = 'PASS' | 'FAIL' | 'SKIP' | 'ERROR'
 

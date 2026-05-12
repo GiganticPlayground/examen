@@ -1,14 +1,14 @@
-import type { ExamenTestSuite } from './types.js'
-import type { Scope } from './context.js'
-import type { CaseResult, HttpRequestInfo, CliRequestInfo } from './output.js'
-import { createLookup, evalSuiteVars } from './context.js'
-import { createRng } from './generators.js'
+import type { ExamenTestSuite } from '../types.js'
+import type { Scope } from '../eval/context.js'
+import type { CaseResult, HttpRequestInfo, CliRequestInfo } from '../output.js'
+import { createLookup, evalSuiteVars } from '../eval/context.js'
+import { createRng } from '../eval/generators.js'
 import { buildPlan, normalizeDeps } from './plan.js'
-import { runHttpStep } from './steps/http.js'
-import { runCliStep } from './steps/cli.js'
-import { applyCapture } from './capture.js'
-import { evaluateExpect } from './expect.js'
-import { renderTemplate, renderValue } from './template.js'
+import { runHttpStep } from '../steps/http.js'
+import { runCliStep } from '../steps/cli.js'
+import { applyCapture } from '../eval/capture.js'
+import { evaluateExpect } from '../eval/expect.js'
+import { renderTemplate, renderValue } from '../eval/template.js'
 
 export interface RunOptions {
   only?: string[]
@@ -66,7 +66,6 @@ export async function runSuite(
     if (tc.forEachAs !== undefined && tc.forEachItem !== undefined) {
       const item = tc.forEachItem
       if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
-        // For object items, show key=value pairs
         label = Object.entries(item as Record<string, unknown>)
           .map(([k, v]) => `${k}=${String(v)}`)
           .join(', ')
@@ -141,9 +140,9 @@ export async function runSuite(
       const maxAttempts = test.retry?.count ?? 1
       const retryDelay = test.retry?.delayMs ?? 0
 
-      let assertions: import('./expect.js').AssertionResult[] = []
-      let httpResp: import('./steps/http.js').HttpResponse | undefined
-      let cliResp: import('./steps/cli.js').CliResponse | undefined
+      let assertions: import('../eval/expect.js').AssertionResult[] = []
+      let httpResp: import('../steps/http.js').HttpResponse | undefined
+      let cliResp: import('../steps/cli.js').CliResponse | undefined
       let httpReq: HttpRequestInfo | undefined
       let cliReq: CliRequestInfo | undefined
 
@@ -154,7 +153,6 @@ export async function runSuite(
 
         if (test.http) {
           const lookup = createLookup(caseScope)
-          // Capture request details for output before execution
           httpReq = {
             method: test.http.method,
             url: renderTemplate(test.http.url, lookup),
